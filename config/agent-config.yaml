@@ -1,0 +1,93 @@
+# SonarQube Analysis Agent Configuration
+
+agent:
+  name: "SonarQube Analysis Agent"
+  version: "1.0.0"
+
+# LLM Configuration (Ollama)
+llm:
+  provider: "ollama"
+  base_url: "${OLLAMA_HOST:-http://ollama:11434}"
+  models:
+    primary: "deepseek-coder-v2:33b"      # Best code understanding
+    secondary: "codellama:13b"            # Fast triage
+    lightweight: "llama3.1:8b"            # Text generation
+
+# SonarQube Configuration
+sonarqube:
+  url: "${SONARQUBE_URL}"
+  token: "${SONARQUBE_TOKEN}"
+  projects:
+    # List of project keys to monitor
+    # Can be overridden by SONARQUBE_PROJECTS environment variable (comma-separated)
+    - "my-backend-service"
+    - "payment-api"
+    - "user-service"
+  severities:
+    - "CRITICAL"
+    - "HIGH"
+  # Optionally filter by rule types
+  # types:
+  #   - "VULNERABILITY"
+  #   - "SECURITY_HOTSPOT"
+
+# GitHub Configuration
+github:
+  token: "${GITHUB_TOKEN}"
+  repositories:
+    - owner: "myorg"
+      name: "backend-service"
+    - owner: "myorg"
+      name: "payment-api"
+
+# Agent Behavior Configuration
+behavior:
+  # False Positive Detection
+  false_positive:
+    min_confidence: 0.85           # Minimum confidence to mark as false positive
+    auto_mark: true                # Automatically mark as "won't fix"
+    require_review_below: 0.70     # Assign to human if confidence below this
+
+  # Fix Generation
+  fix_generation:
+    min_confidence: 0.90           # Minimum confidence to create PR
+    auto_create_pr: true           # Automatically create PRs
+    request_copilot_review: true   # Request GitHub Copilot review
+    supported_patterns:
+      - "null_pointer"
+      - "resource_leak"
+      - "sql_injection"
+      - "hardcoded_credentials"
+      - "insecure_random"
+      - "path_traversal"
+      - "weak_crypto"
+
+  # Risk Prioritization
+  prioritization:
+    auto_fix_priorities:           # Priorities that trigger automatic fixes
+      - "P0"
+      - "P1"
+    escalate_priorities:           # Priorities that require immediate attention
+      - "P0"
+    escalation_channel: "slack://security-alerts"  # Optional webhook for alerts
+
+  # Rate Limiting
+  rate_limiting:
+    max_prs_per_hour: 5            # Maximum PRs to create per hour
+    max_comments_per_hour: 20      # Maximum comments to post per hour
+    poll_interval_seconds: 300     # How often to check for new findings (5 minutes)
+
+# Logging Configuration
+logging:
+  level: "${LOG_LEVEL:-INFO}"
+  file: "/app/logs/agent.log"
+  format: "json"                   # or "text"
+
+# Optional: Slack/Teams notifications
+notifications:
+  enabled: false
+  webhook_url: "${NOTIFICATION_WEBHOOK_URL}"
+  notify_on:
+    - "pr_created"
+    - "false_positive_detected"
+    - "high_priority_finding"

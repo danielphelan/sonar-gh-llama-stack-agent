@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # Ollama server for local LLM inference
+  ollama:
+    image: ollama/ollama:latest
+    container_name: sonarqube-agent-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    # If no GPU, comment out the deploy section above
+    # and the container will run on CPU (slower)
+
+  # SonarQube Analysis Agent
+  sonarqube-agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: sonarqube-agent
+    environment:
+      # Ollama Configuration
+      OLLAMA_HOST: http://ollama:11434
+
+      # SonarQube Configuration
+      SONARQUBE_URL: ${SONARQUBE_URL}
+      SONARQUBE_TOKEN: ${SONARQUBE_TOKEN}
+      SONARQUBE_PROJECTS: ${SONARQUBE_PROJECTS}
+
+      # GitHub Configuration
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      GITHUB_REPOS: ${GITHUB_REPOS}
+
+      # Agent Configuration
+      AGENT_CONFIG_PATH: /app/config/agent-config.yaml
+      POLL_INTERVAL: ${POLL_INTERVAL:-300}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+      # Behavior Flags
+      AUTO_CREATE_PR: ${AUTO_CREATE_PR:-true}
+      AUTO_MARK_FP: ${AUTO_MARK_FP:-true}
+      DRY_RUN: ${DRY_RUN:-false}
+
+    volumes:
+      - ../config:/app/config:ro
+      - ../logs:/app/logs
+      - ../.env:/app/.env:ro
+    depends_on:
+      - ollama
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  ollama_models:
+    driver: local
+
+networks:
+  default:
+    name: sonarqube-agent-network
